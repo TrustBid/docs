@@ -119,7 +119,11 @@ erDiagram
 
 ## Vista 2 — Operaciones Financieras
 
-Entidades: `projects` (ref), `areas` (ref), `accounts`, `custodian_keys`, `funding_sources`, `transactions`, `expense_splits`, `indexer_state`
+Entidades: `projects` (ref), `areas` (ref), `accounts`, `custodian_keys`, `funding_sources`, `transactions`, `expense_splits`, `invoice_ocr`, `indexer_state`
+
+> `transactions.funding_source_id` → trazabilidad directa para transacciones simples (sin split).
+> `transactions.project_id` → nullable cuando hay `expense_splits`.
+> `invoice_ocr.ocr_status`: `pending → extracted → validated | rejected` (validación humana requerida).
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#d1fae5', 'primaryTextColor': '#064e3b', 'primaryBorderColor': '#10b981', 'lineColor': '#475569', 'fontSize': '11px'}}}%%
@@ -141,7 +145,6 @@ erDiagram
         uuid parent_area_id FK
         varchar name
         smallint level
-        uuid responsable_id FK
     }
 
     accounts {
@@ -154,7 +157,6 @@ erDiagram
         numeric budget_amount
         numeric spent_amount
         asset_code asset_code
-        jsonb categories
         timestamptz created_at
     }
 
@@ -164,7 +166,6 @@ erDiagram
         uuid account_id FK
         varchar public_key
         varchar kms_key_id
-        varchar kms_key_version
         varchar key_type
         timestamptz created_at
     }
@@ -178,7 +179,6 @@ erDiagram
         numeric amount
         asset_code asset_code
         date received_at
-        text notes
         timestamptz created_at
     }
 
@@ -188,9 +188,9 @@ erDiagram
         uuid project_id FK
         uuid account_id FK
         uuid area_id FK
+        uuid funding_source_id FK
         varchar beneficiary
         varchar concept
-        varchar category
         numeric amount
         asset_code asset_code
         varchar memo_id UK
@@ -210,7 +210,20 @@ erDiagram
         uuid funding_source_id FK
         numeric amount
         numeric percentage
-        text notes
+    }
+
+    invoice_ocr {
+        uuid id PK
+        uuid organization_id FK
+        uuid transaction_id FK
+        text image_url
+        ocr_status ocr_status
+        jsonb extracted_fields
+        jsonb ocr_raw
+        uuid validated_by FK
+        timestamptz validated_at
+        text rejection_reason
+        timestamptz created_at
     }
 
     indexer_state {
@@ -218,7 +231,6 @@ erDiagram
         bigint last_ledger
         timestamptz last_sync
         varchar status
-        text error_message
     }
 
     projects ||--o{ accounts : "allocates"
@@ -232,8 +244,10 @@ erDiagram
     accounts ||--o{ transactions : "records"
     accounts ||--o| custodian_keys : "managed by"
 
+    funding_sources ||--o{ transactions : "funds directly"
     funding_sources ||--o{ expense_splits : "sourced by"
     transactions ||--o{ expense_splits : "split into"
+    transactions ||--o| invoice_ocr : "has OCR"
 
     indexer_state }o..o{ transactions : "indexes"
 ```
@@ -406,7 +420,7 @@ erDiagram
 
 | Enum | Valores |
 |---|---|
-| `user_role` | admin, responsable, donante |
+| `user_role` | admin, responsable, donante, **contador**, **admin_regional** |
 | `wallet_provider` | freighter, albedo, custodial |
 | `project_status` | draft, active, paused, completed, archived |
 | `project_category` | infrastructure, education, health, technology, environment, social, other |
@@ -417,6 +431,7 @@ erDiagram
 | `activity_type` | verification, disbursement, expense, report, project |
 | `funding_source_type` | international_org, government, corporate, individual, event, other |
 | `template_format` | eu, usaid, idb, custom |
+| `ocr_status` | pending, extracted, validated, rejected |
 
 ## Convenciones
 

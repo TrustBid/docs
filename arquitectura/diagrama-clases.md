@@ -263,6 +263,8 @@ classDiagram
         admin
         responsable
         donante
+        contador
+        admin_regional
     }
     class ProjectStatus {
         <<enumeration>>
@@ -305,6 +307,28 @@ classDiagram
         custom
     }
 
+    class OcrStatus {
+        <<enumeration>>
+        pending
+        extracted
+        validated
+        rejected
+    }
+
+    class InvoiceOcr {
+        +UUID id PK
+        +UUID organizationId FK
+        +UUID transactionId FK
+        +String imageUrl
+        +OcrStatus ocrStatus
+        +JSONB extractedFields
+        +JSONB ocrRaw
+        +UUID validatedBy FK
+        +DateTime validatedAt
+        +String rejectionReason
+        +DateTime createdAt
+    }
+
     %% ── RELATIONSHIPS ─────────────────────────────────────
 
     Organization "1" --> "0..*" Plan : has
@@ -340,8 +364,10 @@ classDiagram
 
     FundingSource "1" --> "0..*" ExpenseSplit : sourced by
     Transaction "1" --> "0..*" ExpenseSplit : split into
+    Transaction "1" --> "0..1" InvoiceOcr : has OCR
     Transaction --> TxStatus : txStatus
     Transaction --> AssetCode : asset
+    InvoiceOcr --> OcrStatus : status
 
     PipelineTemplate "1" --> "0..*" PipelineTemplateStage : defines
     PipelineStage --> PipelineTemplateStage : cloned from
