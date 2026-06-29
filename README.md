@@ -23,7 +23,7 @@ trazabilidad de fondos para ONGs sobre Stellar.
 | [arquitectura/diagrama-secuencia.md](./arquitectura/diagrama-secuencia.md) | 4 flujos dinámicos (gasto+OCR+anclaje, desembolso+off-ramp, verificación donante, reporte) con control interno e idempotencia. |
 | [arquitectura/diagrama-componentes.md](./arquitectura/diagrama-componentes.md) | Modelo C4 (contenedores + componentes de la API), puertos/adaptadores. |
 | [arquitectura/diagrama-despliegue.md](./arquitectura/diagrama-despliegue.md) | Vista física: Vercel, Railway, SDP, Neon, Upstash, R2, KMS, Stellar testnet. |
-| [arquitectura/checklist-integraciones-stellar.md](./arquitectura/checklist-integraciones-stellar.md) | Checklist de implementación por fase + 5 flujos de secuencia (identidad/login, donación, KYC/KYB, desembolso SDP, auditoría) para las piezas de [integraciones-stellar.md](./integraciones-stellar.md). |
+| [arquitectura/flujos-integraciones-stellar.md](./arquitectura/flujos-integraciones-stellar.md) | 5 flujos de secuencia (identidad/login, donación, KYC/KYB, desembolso SDP, auditoría) para las piezas de [integraciones-stellar.md](./integraciones-stellar.md). |
 
 > Verificado contra la documentación oficial de Stellar. Las fuentes están enlazadas
 > al final de cada documento.
