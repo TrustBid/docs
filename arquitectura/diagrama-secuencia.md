@@ -28,16 +28,17 @@ Estos diagramas son **canónicos**. Cualquier código o flujo nuevo debe respeta
 
 ---
 
-## Flujo 1 — Registrar gasto con OCR + anclaje on-chain
+## Flujo 1 — Registrar gasto con OCR + validación Contador + anclaje on-chain
 
-> UC13, UC15, UC16, UC24, UC33, UC34 · Tablas: `transactions`, `expense_splits`,
-> `activity_events`, `indexer_state` · Actor: Responsable de Área (móvil, 3G).
+> UC13, UC15, UC16, UC24, UC33, UC34 · Tablas: `transactions`, `invoice_ocr`,
+> `expense_splits`, `activity_events`, `indexer_state` · Actores: Responsable de Área (móvil, 3G) + Contador.
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#dbeafe','primaryTextColor':'#1e3a5f','primaryBorderColor':'#3b82f6','lineColor':'#64748b','fontSize':'13px'}}}%%
 sequenceDiagram
     autonumber
     actor R as 👤 Responsable
+    actor C as 👤 Contador
     participant W as 🖥️ Web (Next.js)
     participant API as ⚙️ API NestJS<br/>(módulo Operaciones)
     participant OCR as 🧠 Worker OCR/IA
@@ -51,26 +52,44 @@ sequenceDiagram
     W->>API: POST /transactions (JWT + org_id)
     API->>API: Valida tenant + rol (Guard)
     API->>R2: Sube imagen
-    API->>DB: INSERT transactions (status=pending, memo_id=UUID)
-    API-->>W: 201 (borrador en revisión)
-    API->>OCR: Encola job OCR (tx_id)
+    API->>DB: INSERT transactions (tx_status=pending, memo_id=UUID)
+    API->>DB: INSERT invoice_ocr (ocr_status=pending, transaction_id)
+    API-->>W: 201 (borrador — pendiente de OCR y validación)
+    API->>OCR: Encola job OCR (tx_id, image_url)
     OCR->>R2: Lee imagen
-    OCR->>DB: Actualiza campos extraídos (pendiente de validar)
-    Note over OCR,DB: UC24 — la IA NO autoconfirma:<br/>requiere validación humana
-    API->>KMS: Firma tx Stellar (server-side, memo=memo_id)
-    KMS-->>API: Tx firmada
-    API->>STL: Envía tx con MEMO de anclaje
-    STL-->>API: Hash (no confirmado aún)
-    IDX->>STL: Polling del ledger (last_ledger)
-    STL-->>IDX: Tx confirmada en ledger N
-    IDX->>DB: UPDATE status=confirmed, ledger=N
-    IDX->>DB: INSERT activity_events (type=expense, tx_hash)
-    Note over DB: Append-only — el confirmado<br/>ya no se modifica
+    OCR->>DB: UPDATE invoice_ocr (ocr_status=extracted, extracted_fields)
+    Note over OCR,DB: UC24 — la IA NO autoconfirma.<br/>Contador debe validar antes del anclaje.
+    C->>W: Abre bandeja de facturas pendientes
+    W->>API: GET /invoice-ocr?status=extracted
+    API->>DB: SELECT invoice_ocr + transactions
+    DB-->>API: Facturas con campos extraídos
+    API-->>W: Lista para revisar
+    C->>W: Valida o rechaza factura
+    alt Contador valida
+        W->>API: PATCH /invoice-ocr/:id (validated)
+        API->>DB: UPDATE invoice_ocr (ocr_status=validated, validated_by, validated_at)
+        API->>KMS: Firma tx Stellar (server-side, memo=memo_id)
+        KMS-->>API: Tx firmada
+        API->>STL: Envía tx con MEMO de anclaje
+        STL-->>API: Hash (no confirmado aún)
+        API->>DB: UPDATE transactions (tx_status=submitted)
+        IDX->>STL: Polling del ledger (last_ledger)
+        STL-->>IDX: Tx confirmada en ledger N
+        IDX->>DB: UPDATE transactions (tx_status=confirmed, stellar_ledger=N)
+        IDX->>DB: INSERT activity_events (type=expense, tx_hash)
+        Note over DB: Append-only — el confirmado<br/>ya no se modifica
+    else Contador rechaza
+        W->>API: PATCH /invoice-ocr/:id (rejected, rejection_reason)
+        API->>DB: UPDATE invoice_ocr (ocr_status=rejected, rejection_reason)
+        API->>DB: UPDATE transactions (tx_status=failed)
+        Note over DB: El Responsable es notificado<br/>para corregir y resubir
+    end
 ```
 
-**Control interno:** el registro nace `pending`; solo el indexador (proceso de
-sistema, no un humano) lo pasa a `confirmed` al verlo en el ledger. La evidencia
-queda en R2 y el anclaje on-chain es verificable por terceros.
+**Control interno:** el registro nace `pending`; el anclaje on-chain solo ocurre tras
+validación explícita del Contador (`invoice_ocr.ocr_status = validated`). Solo el
+indexador pasa la transacción a `confirmed` al verla en el ledger. La evidencia
+queda en R2 y el anclaje es verificable por terceros.
 
 ---
 
@@ -197,7 +216,7 @@ sequenceDiagram
 
 | Flujo | UCs | Tablas principales | Patrón de diseño |
 |---|---|---|---|
-| 1 · Gasto + OCR + anclaje | UC13,15,16,24,33,34 | transactions, activity_events, indexer_state | Pipeline · Append-only |
+| 1 · Gasto + OCR + validación + anclaje | UC13,15,16,24,33,34 | transactions, **invoice_ocr**, activity_events, indexer_state | Pipeline · Append-only · **Human-in-the-loop** |
 | 2 · Desembolso + off-ramp | UC11,30 | funding_sources, transactions, expense_splits, custodian_keys, activity_events | **Saga** · Idempotencia · Append-only |
 | 3 · Verificación donante | UC29,31,32 | projects, transactions, pipeline_stages | CQRS lectura · verificación externa |
 | 4 · Reporte por template | UC21,27,28 | report_templates, reports, report_attachments | Strategy (template) · Worker async |

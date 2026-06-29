@@ -40,6 +40,10 @@ graph TB
         WEBN["«artifact» Web App<br/>Next.js SSR/Static"]:::artifact
     end
 
+    subgraph CFPAGES ["☁️ Cloudflare Pages"]
+        DOCSN["«artifact» Docs Site<br/>Next.js (Static Export)"]:::artifact
+    end
+
     subgraph RAILWAY ["☁️ Railway"]
         APIN["«artifact» API<br/>NestJS (Docker)"]:::artifact
         WRKN["«artifact» Workers<br/>indexador·OCR·PDF·reconcil."]:::artifact
@@ -71,6 +75,7 @@ graph TB
 
     BR -->|HTTPS| WEBN
     MOB -->|HTTPS 3G| WEBN
+    BR -.docs.-> DOCSN
     WEBN -->|HTTPS REST| APIN
     APIN -->|TLS| NEON
     APIN -->|TLS| UPS
@@ -97,6 +102,7 @@ graph TB
 | Nodo | Artefacto desplegado | Protocolo entrante | Notas |
 |---|---|---|---|
 | Vercel | Web Next.js | HTTPS | Edge/CDN; portal interno + público |
+| Cloudflare Pages | Docs Site Next.js (static) | HTTPS | Documentación pública para desarrolladores/partners |
 | Railway | API NestJS (Docker) | HTTPS REST | Dominio + orquestación |
 | Railway | Workers (Docker) | cola (BullMQ) | Indexador, OCR, PDF, reconciliación |
 | Host SDP | SDP + su PostgreSQL | HTTPS API | Servicio aparte, esquemas por tenant |

@@ -32,12 +32,14 @@ graph TB
 
     U1["👤 Usuarios ONG<br/>(admin, responsable,<br/>contador, regional)"]:::person
     U2["👤 Donante /<br/>Público"]:::person
+    U3["👨‍💻 Desarrollador /<br/>Partner"]:::person
 
     subgraph TB_SYS ["Sistema TrustBid"]
         WEB["🖥️ Web App<br/>Next.js (App Router)<br/>portal interno + público"]:::container
+        DOCS["📚 Docs Site<br/>Next.js (Static)<br/>Cloudflare Pages"]:::container
         API["⚙️ API<br/>NestJS REST<br/>dominio + orquestación"]:::container
         WRK["🧰 Workers<br/>indexador · OCR/IA ·<br/>PDF · reconciliación"]:::container
-        PKG["📦 packages/*<br/>stellar-sdk+KMS · billing ·<br/>reports · tenancy · ui"]:::container
+        PKG["📦 packages/*<br/>stellar-sdk+KMS · ocr-pipeline ·<br/>reports · tenancy · ui"]:::container
         PG[("🛢️ PostgreSQL / Neon<br/>RLS por tenant")]:::data
         RDS[("⚡ Redis / Upstash<br/>BullMQ (colas) + cache")]:::data
         R2[("🗄️ Cloudflare R2<br/>evidencias / PDFs")]:::data
@@ -55,6 +57,7 @@ graph TB
 
     U1 --> WEB
     U2 --> WEB
+    U3 --> DOCS
     WEB --> API
     API --> PKG
     API --> PG
