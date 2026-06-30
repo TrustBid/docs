@@ -563,14 +563,65 @@ activity_events                        → solo INSERT, nunca UPDATE
 
 ## 7. Orden de construcción (sprints)
 
-| Sprint | Módulos / Workers | Desbloquea |
-|---|---|---|
-| **0 — ahora** | `common/filters` · `auth` (SEP-10 completo) | Merge blocker — login real con wallet |
-| **1** | `public` completo (todos los endpoints del merge spec) | Portal público con datos reales; cierra el merge |
-| **2** | `transactions` · `ocr.worker` · `indexer.worker` | Flujo 1 — volumen diario más alto; conecta el dashboard de gastos |
-| **3** | `disbursements` · `reconciliation.worker` | Flujos 2 y D — desembolsos SDP |
-| **4** | `reports` · `pdf.worker` | Flujo 4 — la UI ya existe, falta el endpoint |
-| **5** | `organizations` (KYB completo) · `blockchain` (SBT + ZK) | Flujos C, F, G — reputación on-chain |
+| Sprint | Módulos / Workers | Estado | Desbloquea |
+|---|---|---|---|
+| **0** | `common/` completo · `database/` · `auth` SEP-10 | ✅ Implementado | Merge blocker — login real con wallet |
+| **1** | `public` (5 endpoints del merge spec) | ✅ Implementado | Portal público con datos reales; **merge listo** |
+| **2** | `transactions` · `ocr.worker` · `indexer.worker` | 🔲 Siguiente | Flujo 1 — gastos + OCR + anclaje |
+| **3** | `disbursements` · `reconciliation.worker` | 🔲 | Flujos 2 y D — desembolsos SDP |
+| **4** | `reports` · `pdf.worker` | 🔲 | Flujo 4 — templates de donantes |
+| **5** | `organizations` (KYB) · `blockchain` (SBT + ZK) | 🔲 | Flujos C, F, G — reputación on-chain |
+
+### Sprint 0 — Detalle de archivos implementados
+
+```
+platform/apps/api/src/
+├── main.ts                          # port 3001 · GlobalPipe · HttpExceptionFilter · CORS
+├── app.module.ts                    # ConfigModule · DatabaseModule · AuthModule
+│
+├── common/
+│   ├── filters/http-exception.filter.ts   # { error: { code, message } } global
+│   ├── guards/
+│   │   ├── jwt-auth.guard.ts              # Bearer JWT verification
+│   │   └── roles.guard.ts                 # @Roles() enforcement
+│   ├── decorators/
+│   │   ├── public.decorator.ts            # @Public() — bypasa JWT guard
+│   │   ├── roles.decorator.ts             # @Roles('admin','contador',...)
+│   │   └── org.decorator.ts               # @CurrentOrg() · @CurrentUser()
+│   └── interceptors/rls.interceptor.ts    # propaga orgId al request (RLS Sprint 1+)
+│
+├── database/database.module.ts      # pg Pool global · SSL automático para Neon
+│
+└── modules/auth/
+    ├── auth.module.ts               # JwtModule · REDIS_CLIENT provider · exports guards
+    ├── auth.controller.ts           # GET /challenge · POST /token · POST /refresh · GET /me
+    ├── auth.service.ts              # SEP-10 challenge+verify · findOrCreateUser
+    └── dto/
+        ├── challenge-query.dto.ts   # account: G... (Stellar address regex)
+        └── token-request.dto.ts     # transaction: string (XDR base64)
+```
+
+**Comportamiento `findOrCreateUser`:** primera conexión de wallet = auto-bootstrap de `organizations` + `users` (rol `admin`) + `user_wallets`. Esto permite onboarding sin registro previo en Sprint 0.
+
+**Variables de entorno requeridas para Sprint 0:** `DATABASE_URL` · `REDIS_URL` · `JWT_SECRET` · `STELLAR_SERVER_SECRET` · `STELLAR_NETWORK`
+
+### Sprint 1 — Detalle de archivos implementados
+
+```
+platform/apps/api/src/modules/public/
+├── public.module.ts
+├── public.controller.ts    # @Public() en todos los endpoints
+├── public.service.ts       # queries sin RLS (datos públicos)
+└── dto/
+    ├── projects-query.dto.ts   # ?q · ?category (opcionales)
+    └── create-donation.dto.ts  # projectId · amountUsd · walletAddress?
+```
+
+**Guards globales registrados en `AppModule`:** `JwtAuthGuard` + `RolesGuard` vía `APP_GUARD`. Toda ruta nueva queda protegida por defecto; solo necesita `@Public()` para ser pública.
+
+**Nota `GET /ngo`:** `tagline` y `mission` se leen de `organizations.settings` (JSONB). Si el campo está vacío retorna defaults razonables. Se puede poblar vía `UPDATE organizations SET settings = '{"tagline":"...", "mission":"..."}'::jsonb WHERE id = $1`.
+
+**Nota `POST /donations`:** inserta en `transactions (tx_status=pending)`. El `verificationCode` siempre es `null` al crear — el Worker Indexador lo actualiza a `confirmed` tras ver la tx on-chain (Flujo B).
 
 ---
 
