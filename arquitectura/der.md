@@ -1,7 +1,7 @@
 # TrustBid — Diagrama Entidad-Relación (DER)
 
-> 23 tablas — Sprint 1+2 (`init-db.sql`) + Sprint 3 (`sprint3-schema.sql`).
-> Dividido en 3 vistas por dominio. El diagrama de clases (`diagrama-clases.md`) muestra la visión OOP.
+> 25 tablas — Sprint 1+2 (`init-db.sql`) + Sprint 3 (`sprint3-schema.sql`) + Sprint 4 (`sprint4-sbt-zk.sql`).
+> Dividido en 4 vistas por dominio. El diagrama de clases (`diagrama-clases.md`) muestra la visión OOP.
 
 ---
 
@@ -416,6 +416,74 @@ erDiagram
 
 ---
 
+---
+
+## Vista 4 — Reputación y Credenciales ZK (Sprint 4)
+
+Entidades: `organizations` (ref), `users` (ref), `organization_badges`, `zk_proofs`
+
+> `organization_badges.status`: `pending → issued | revoked | expired`.
+> `zk_proofs.status`: `computing → anchoring → anchored | failed`.
+> Ambas tablas son append-only: revocación = nuevo registro, nunca UPDATE del original.
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#f3e8ff', 'primaryTextColor': '#3b0764', 'primaryBorderColor': '#9333ea', 'lineColor': '#475569', 'fontSize': '11px'}}}%%
+erDiagram
+
+    organizations {
+        uuid id PK
+        varchar name
+        varchar wallet_address
+        varchar stellar_network
+    }
+
+    users {
+        uuid id PK
+        uuid organization_id FK
+        user_role role
+    }
+
+    organization_badges {
+        uuid id PK
+        uuid organization_id FK
+        badge_type badge_type
+        badge_status status
+        varchar contract_id
+        varchar token_id
+        varchar anchor_tx_hash
+        bigint stellar_ledger
+        text metadata_url
+        timestamptz issued_at
+        timestamptz expires_at
+        uuid issued_by FK
+        timestamptz created_at
+    }
+
+    zk_proofs {
+        uuid id PK
+        uuid organization_id FK
+        zk_credential_type credential_type
+        zk_proof_status status
+        varchar commitment_hash UK
+        jsonb public_inputs
+        text proof_artifact_url
+        varchar contract_id
+        varchar anchor_tx_hash
+        bigint stellar_ledger
+        timestamptz generated_at
+        timestamptz expires_at
+        uuid created_by FK
+        timestamptz created_at
+    }
+
+    organizations ||--o{ organization_badges : "holds"
+    organizations ||--o{ zk_proofs : "proves"
+    users }o--o{ organization_badges : "issued_by"
+    users }o--o{ zk_proofs : "created_by"
+```
+
+---
+
 ## Enums del schema
 
 | Enum | Valores |
@@ -432,6 +500,10 @@ erDiagram
 | `funding_source_type` | international_org, government, corporate, individual, event, other |
 | `template_format` | eu, usaid, idb, custom |
 | `ocr_status` | pending, extracted, validated, rejected |
+| `badge_type` *(Sprint 4)* | kyb_verified, transparency_bronze, transparency_silver, transparency_gold, audit_passed |
+| `badge_status` *(Sprint 4)* | pending, issued, revoked, expired |
+| `zk_credential_type` *(Sprint 4)* | donor_privacy, budget_compliance, impact_threshold, audit_trail |
+| `zk_proof_status` *(Sprint 4)* | computing, anchoring, anchored, failed |
 
 ## Convenciones
 
