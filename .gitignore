@@ -1,0 +1,8 @@
+# Documentos internos — solo local, nunca en el repo público
+10. Insights técnicos por entrevistado.md
+ecosistema-stellar.md
+integraciones-stellar.md
+
+# Temporales
+*.DS_Store
+*.swp
